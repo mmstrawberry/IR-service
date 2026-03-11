@@ -1,0 +1,504 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>图像增强算法集成服务</title>
+    <style>
+      :root {
+        --bg: #0f172a;
+        --panel: #111827;
+        --panel-2: #1f2937;
+        --line: #334155;
+        --text: #e5e7eb;
+        --muted: #94a3b8;
+        --accent: #38bdf8;
+        --danger: #fb7185;
+        --success: #34d399;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        font-family: Arial, Helvetica, sans-serif;
+        background: linear-gradient(180deg, #020617 0%, #0f172a 100%);
+        color: var(--text);
+      }
+
+      .container {
+        max-width: 1120px;
+        margin: 0 auto;
+        padding: 32px 20px 48px;
+      }
+
+      .hero {
+        margin-bottom: 24px;
+      }
+
+      .hero h1 {
+        margin: 0 0 8px;
+        font-size: 28px;
+      }
+
+      .hero p {
+        margin: 0;
+        color: var(--muted);
+        line-height: 1.6;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: 360px 1fr;
+        gap: 20px;
+      }
+
+      .card {
+        background: rgba(17, 24, 39, 0.9);
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        padding: 18px;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+      }
+
+      .card h2 {
+        margin-top: 0;
+        font-size: 18px;
+      }
+
+      .form-row {
+        margin-bottom: 14px;
+      }
+
+      .label {
+        display: block;
+        margin-bottom: 8px;
+        font-size: 14px;
+        color: var(--muted);
+      }
+
+      select,
+      input[type="file"],
+      textarea,
+      button {
+        width: 100%;
+        border-radius: 12px;
+        border: 1px solid var(--line);
+        background: var(--panel-2);
+        color: var(--text);
+        padding: 12px 14px;
+        font-size: 14px;
+      }
+
+      textarea {
+        min-height: 92px;
+        resize: vertical;
+      }
+
+      button {
+        cursor: pointer;
+        background: linear-gradient(90deg, #0284c7, #06b6d4);
+        border: none;
+        font-weight: bold;
+      }
+
+      button:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+      }
+
+      .hint {
+        margin-top: 10px;
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.5;
+      }
+
+      .badge {
+        display: inline-block;
+        margin-top: 8px;
+        padding: 4px 8px;
+        border-radius: 999px;
+        font-size: 12px;
+        border: 1px solid var(--line);
+      }
+
+      .badge.gpu {
+        color: #fbbf24;
+        border-color: rgba(251, 191, 36, 0.5);
+      }
+
+      .preview-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 18px;
+      }
+
+      .preview-box {
+        border: 1px dashed var(--line);
+        border-radius: 16px;
+        min-height: 360px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+        background: rgba(2, 6, 23, 0.75);
+      }
+
+      .preview-box img {
+        max-width: 100%;
+        max-height: 420px;
+        object-fit: contain;
+        display: block;
+      }
+
+      .empty {
+        color: var(--muted);
+        padding: 24px;
+        text-align: center;
+        line-height: 1.7;
+      }
+
+      .toolbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 14px;
+        gap: 12px;
+      }
+
+      .toast {
+        position: fixed;
+        right: 24px;
+        top: 24px;
+        min-width: 260px;
+        max-width: 420px;
+        padding: 14px 16px;
+        border-radius: 14px;
+        background: rgba(15, 23, 42, 0.96);
+        border: 1px solid var(--line);
+        box-shadow: 0 16px 40px rgba(0, 0, 0, 0.35);
+        opacity: 0;
+        transform: translateY(-8px);
+        pointer-events: none;
+        transition: all 0.22s ease;
+        z-index: 9999;
+      }
+
+      .toast.show {
+        opacity: 1;
+        transform: translateY(0);
+      }
+
+      .toast.error {
+        border-color: rgba(251, 113, 133, 0.45);
+      }
+
+      .toast.success {
+        border-color: rgba(52, 211, 153, 0.45);
+      }
+
+      .footer {
+        margin-top: 16px;
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      @media (max-width: 920px) {
+        .grid,
+        .preview-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <section class="hero">
+        <h1>图像增强算法集成 Web 服务</h1>
+        <p>
+          前后端物理不分离，前端通过 <code>/api/algorithms</code> 动态拉取任务与算法清单；
+          处理请求统一走 <code>/api/process</code>，并在前端优雅提示 GPU / CUDA 不可用等异常。
+        </p>
+      </section>
+
+      <div class="grid">
+        <section class="card">
+          <h2>处理面板</h2>
+          <form id="process-form">
+            <div class="form-row">
+              <label class="label" for="task-select">任务</label>
+              <select id="task-select"></select>
+            </div>
+
+            <div class="form-row">
+              <label class="label" for="algorithm-select">算法</label>
+              <select id="algorithm-select"></select>
+              <div id="algorithm-badge" class="badge" hidden></div>
+            </div>
+
+            <div class="form-row">
+              <label class="label" for="file-input">上传图片</label>
+              <input id="file-input" type="file" accept="image/*" />
+            </div>
+
+            <div class="form-row">
+              <label class="label" for="options-input">可选参数（JSON）</label>
+              <textarea id="options-input" placeholder='例如：{"brightness": 1.15}'>{}</textarea>
+            </div>
+
+            <button id="submit-button" type="submit">开始处理</button>
+            <div class="hint">
+              如果某算法依赖 GPU / CUDA 自定义算子，而当前环境没有 GPU，后端会返回 HTTP 400，
+              页面会用 Toast 弹窗提示，而不是让服务直接崩溃。
+            </div>
+          </form>
+        </section>
+
+        <section class="card">
+          <div class="toolbar">
+            <h2 style="margin: 0">预览结果</h2>
+            <div id="status-text" class="hint">等待加载算法列表...</div>
+          </div>
+
+          <div class="preview-grid">
+            <div>
+              <div class="label">原图</div>
+              <div class="preview-box">
+                <img id="original-image" hidden alt="original preview" />
+                <div id="original-empty" class="empty">尚未选择图片</div>
+              </div>
+            </div>
+
+            <div>
+              <div class="label">结果图</div>
+              <div class="preview-box">
+                <img id="result-image" hidden alt="result preview" />
+                <div id="result-empty" class="empty">处理完成后将在这里显示结果</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="footer">
+            提示：新增算法时无需修改前端。只要后端新增 Python wrapper 并打上注册装饰器，页面下拉框会自动出现新算法。
+          </div>
+        </section>
+      </div>
+    </div>
+
+    <div id="toast" class="toast"></div>
+
+    <script>
+      const state = {
+        tasks: [],
+        originalObjectUrl: null,
+        resultObjectUrl: null,
+      };
+
+      const taskSelect = document.getElementById("task-select");
+      const algorithmSelect = document.getElementById("algorithm-select");
+      const algorithmBadge = document.getElementById("algorithm-badge");
+      const fileInput = document.getElementById("file-input");
+      const optionsInput = document.getElementById("options-input");
+      const submitButton = document.getElementById("submit-button");
+      const statusText = document.getElementById("status-text");
+      const originalImage = document.getElementById("original-image");
+      const resultImage = document.getElementById("result-image");
+      const originalEmpty = document.getElementById("original-empty");
+      const resultEmpty = document.getElementById("result-empty");
+      const toast = document.getElementById("toast");
+
+      function showToast(message, type = "error") {
+        toast.textContent = message;
+        toast.className = `toast ${type} show`;
+        window.clearTimeout(showToast.timer);
+        showToast.timer = window.setTimeout(() => {
+          toast.className = `toast ${type}`;
+        }, 3200);
+      }
+
+      function setStatus(message) {
+        statusText.textContent = message;
+      }
+
+      function getSelectedTaskRecord() {
+        return state.tasks.find((item) => item.task === taskSelect.value) || null;
+      }
+
+      function getSelectedAlgorithmRecord() {
+        const taskRecord = getSelectedTaskRecord();
+        if (!taskRecord) return null;
+        return taskRecord.algorithms.find((item) => item.name === algorithmSelect.value) || null;
+      }
+
+      function renderTaskOptions() {
+        taskSelect.innerHTML = "";
+        state.tasks.forEach((taskRecord) => {
+          const option = document.createElement("option");
+          option.value = taskRecord.task;
+          option.textContent = taskRecord.task;
+          taskSelect.appendChild(option);
+        });
+        renderAlgorithmOptions();
+      }
+
+      function renderAlgorithmOptions() {
+        const taskRecord = getSelectedTaskRecord();
+        algorithmSelect.innerHTML = "";
+
+        if (!taskRecord) {
+          algorithmBadge.hidden = true;
+          return;
+        }
+
+        taskRecord.algorithms.forEach((algo) => {
+          const option = document.createElement("option");
+          option.value = algo.name;
+          option.textContent = algo.name;
+          algorithmSelect.appendChild(option);
+        });
+
+        refreshAlgorithmBadge();
+      }
+
+      function refreshAlgorithmBadge() {
+        const algo = getSelectedAlgorithmRecord();
+        if (!algo) {
+          algorithmBadge.hidden = true;
+          return;
+        }
+
+        if (algo.requires_gpu) {
+          algorithmBadge.hidden = false;
+          algorithmBadge.className = "badge gpu";
+          algorithmBadge.textContent = "需要 GPU / CUDA";
+        } else {
+          algorithmBadge.hidden = false;
+          algorithmBadge.className = "badge";
+          algorithmBadge.textContent = "CPU 可运行";
+        }
+      }
+
+      async function loadAlgorithms() {
+        setStatus("正在加载算法列表...");
+        try {
+          const response = await fetch("/api/algorithms");
+          if (!response.ok) {
+            throw new Error("算法列表加载失败");
+          }
+          const data = await response.json();
+          state.tasks = data.tasks || [];
+
+          if (!state.tasks.length) {
+            setStatus("当前没有已注册算法");
+            showToast("当前没有已注册算法，请先在 models/ 中接入算法。", "error");
+            return;
+          }
+
+          renderTaskOptions();
+          setStatus(`已加载 ${data.total_tasks} 个任务 / ${data.total_algorithms} 个算法`);
+        } catch (error) {
+          setStatus("算法列表加载失败");
+          showToast(error.message || "算法列表加载失败", "error");
+        }
+      }
+
+      function previewOriginalFile(file) {
+        if (!file) {
+          originalImage.hidden = true;
+          originalEmpty.hidden = false;
+          return;
+        }
+
+        if (state.originalObjectUrl) {
+          URL.revokeObjectURL(state.originalObjectUrl);
+        }
+        state.originalObjectUrl = URL.createObjectURL(file);
+        originalImage.src = state.originalObjectUrl;
+        originalImage.hidden = false;
+        originalEmpty.hidden = true;
+      }
+
+      function previewResultBlob(blob) {
+        if (state.resultObjectUrl) {
+          URL.revokeObjectURL(state.resultObjectUrl);
+        }
+        state.resultObjectUrl = URL.createObjectURL(blob);
+        resultImage.src = state.resultObjectUrl;
+        resultImage.hidden = false;
+        resultEmpty.hidden = true;
+      }
+
+      async function parseError(response) {
+        try {
+          const payload = await response.json();
+          if (typeof payload.detail === "string") return payload.detail;
+          if (payload.detail && payload.detail.message) return payload.detail.message;
+          return JSON.stringify(payload);
+        } catch (error) {
+          return `请求失败，HTTP ${response.status}`;
+        }
+      }
+
+      taskSelect.addEventListener("change", renderAlgorithmOptions);
+      algorithmSelect.addEventListener("change", refreshAlgorithmBadge);
+      fileInput.addEventListener("change", (event) => {
+        previewOriginalFile(event.target.files[0]);
+      });
+
+      document.getElementById("process-form").addEventListener("submit", async (event) => {
+        event.preventDefault();
+
+        const file = fileInput.files[0];
+        if (!file) {
+          showToast("请先上传图片。", "error");
+          return;
+        }
+
+        let optionsText = optionsInput.value.trim();
+        if (!optionsText) {
+          optionsText = "{}";
+        }
+
+        submitButton.disabled = true;
+        submitButton.textContent = "处理中...";
+        setStatus("后端处理中，请稍候...");
+
+        const formData = new FormData();
+        formData.append("task", taskSelect.value);
+        formData.append("algorithm", algorithmSelect.value);
+        formData.append("file", file);
+        formData.append("options", optionsText);
+
+        try {
+          const response = await fetch("/api/process", {
+            method: "POST",
+            body: formData,
+          });
+
+          if (!response.ok) {
+            const message = await parseError(response);
+            showToast(message, "error");
+            setStatus("处理失败");
+            return;
+          }
+
+          const blob = await response.blob();
+          previewResultBlob(blob);
+          showToast("处理完成。", "success");
+          setStatus(`处理完成：${response.headers.get("X-Algorithm") || algorithmSelect.value}`);
+        } catch (error) {
+          showToast(error.message || "网络请求失败", "error");
+          setStatus("网络请求失败");
+        } finally {
+          submitButton.disabled = false;
+          submitButton.textContent = "开始处理";
+        }
+      });
+
+      loadAlgorithms();
+    </script>
+  </body>
+</html>

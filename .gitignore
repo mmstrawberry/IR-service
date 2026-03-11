@@ -1,0 +1,19 @@
+# 忽略所有环境和缓存
+__pycache__/
+*.pyc
+.idea/
+.vscode/
+
+# 忽略临时数据和上传的图片
+tmp/
+datasets/
+results/
+*.png
+*.jpg
+*.jpeg
+
+# 🚨 绝对不能上传的模型权重文件（核心护城河）
+weights/**/*.pth
+weights/**/*.ckpt
+weights/**/*.bin
+weights/**/*.onnx
