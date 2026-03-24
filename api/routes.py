@@ -35,7 +35,7 @@ def _gpu_available() -> bool:
 def _safe_error_detail(message: str, code: str) -> dict[str, str]:
     return {"code": code, "message": message}
 
-
+# 列出所有可用的算法
 @router.get("/algorithms")
 async def get_algorithms() -> dict[str, Any]:
     tasks = list_algorithms_grouped()
@@ -47,7 +47,11 @@ async def get_algorithms() -> dict[str, Any]:
     }
 
 
+# 接收前端上传的图片文件、任务类型、算法名称等参数 → 校验参数合法性 → 调用指定算法处理图片 
+# → 返回处理后的图片结果 → 最后清理临时文件。
+#图片处理后端接口
 @router.post("/process")
+
 async def process_image(
     task: str = Form(...),
     algorithm: str = Form(...),
