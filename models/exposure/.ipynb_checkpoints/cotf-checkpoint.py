@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import shutil
 import subprocess
 from pathlib import Path
@@ -18,14 +19,6 @@ def run_cotf(
     output_path: Path,
     options: dict[str, Any],
 ) -> dict[str, Any] | None:
-    """
-    CoTF (Content-to-Film Transfer) exposure correction algorithm.
-
-    Options:
-      - weights: 权重文件名，默认 sice_net.pth
-      - conda_env: conda 环境名，默认 cotf
-      - timeout: 超时时间，默认 300 秒
-    """
     project_root = Path(__file__).resolve().parent.parent
     third_party_root = project_root / "third_party" / "CoTF"
     bridge_script = third_party_root / "bridge_infer.py"
@@ -34,43 +27,81 @@ def run_cotf(
     output_path = Path(output_path).resolve()
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    conda_env = options.get("conda_env", "cotf")
+    conda_env = str(options.get("conda_env", "cotf"))
     timeout = int(options.get("timeout", 300))
 
-    weights_name = options.get("weights", "sice_net.pth")
-    weights_path = (project_root / "weights" / "cotf" / weights_name).resolve()
+    # 支持两种写法：
+    # 1) {"weights": "sice_net.pth"}
+    # 2) {"weights": "/absolute/path/to/sice_net.pth"}
+    weights_opt = str(options.get("weights", "sice_net.pth"))
+    weights_candidate = Path(weights_opt)
+    if weights_candidate.is_absolute():
+        weights_path = weights_candidate.resolve()
+    else:
+        weights_path = (third_party_root / "weights" / weights_opt).resolve()
 
-    # 基础检查
+    debug_log = output_path.parent / "cotf_wrapper_debug.log"
+
+    def write_debug(text: str) -> None:
+        try:
+            with open(debug_log, "a", encoding="utf-8") as f:
+                f.write(text)
+                if not text.endswith("\n"):
+                    f.write("\n")
+        except Exception:
+            pass
+
+    write_debug("==== CoTF wrapper start ====")
+    write_debug(f"project_root = {project_root}")
+    write_debug(f"third_party_root = {third_party_root}")
+    write_debug(f"bridge_script = {bridge_script}")
+    write_debug(f"input_path = {input_path}")
+    write_debug(f"output_path = {output_path}")
+    write_debug(f"weights_path = {weights_path}")
+    write_debug(f"conda_env = {conda_env}")
+    write_debug(f"timeout = {timeout}")
+
     if not input_path.exists():
-        return {
-            "status": "failed",
-            "error": f"Input file not found: {input_path}",
-        }
+        msg = f"Input file not found: {input_path}"
+        write_debug(msg)
+        return {"status": "failed", "error": msg}
+
+    if not third_party_root.exists():
+        msg = f"CoTF directory not found: {third_party_root}"
+        write_debug(msg)
+        return {"status": "failed", "error": msg}
 
     if not bridge_script.exists():
-        return {
-            "status": "failed",
-            "error": f"bridge_infer.py not found: {bridge_script}",
-        }
+        msg = f"bridge_infer.py not found: {bridge_script}"
+        write_debug(msg)
+        return {"status": "failed", "error": msg}
 
     if not weights_path.exists():
-        return {
-            "status": "failed",
-            "error": f"Weights file not found: {weights_path}",
-        }
+        msg = f"Weights file not found: {weights_path}"
+        write_debug(msg)
+        return {"status": "failed", "error": msg}
 
-    # 记录运行前 results 目录中已有图片，方便后面做兜底查找
-    results_dir = third_party_root / "results"
-    before_files = set()
-    if results_dir.exists():
-        before_files = {
-            p.resolve()
-            for p in results_dir.rglob("*")
-            if p.is_file() and p.suffix.lower() in {".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff"}
-        }
+    conda_exe = shutil.which("conda")
+    if conda_exe is None:
+        # 常见 conda 安装路径兜底
+        candidates = [
+            "/root/miniconda/bin/conda",
+            "/root/miniconda3/bin/conda",
+            "/root/anaconda3/bin/conda",
+            "/opt/conda/bin/conda",
+        ]
+        for c in candidates:
+            if Path(c).exists():
+                conda_exe = c
+                break
+
+    if conda_exe is None:
+        msg = "conda executable not found in PATH"
+        write_debug(msg)
+        return {"status": "failed", "error": msg}
 
     cmd = [
-        "conda",
+        conda_exe,
         "run",
         "-n",
         conda_env,
@@ -84,6 +115,11 @@ def run_cotf(
         str(weights_path),
     ]
 
+    write_debug("command = " + " ".join(cmd))
+
+    env = os.environ.copy()
+    env["PYTHONUNBUFFERED"] = "1"
+
     try:
         result = subprocess.run(
             cmd,
@@ -91,82 +127,60 @@ def run_cotf(
             text=True,
             timeout=timeout,
             cwd=str(project_root),
+            env=env,
         )
     except subprocess.TimeoutExpired:
-        return {
-            "status": "failed",
-            "error": f"CoTF inference timed out after {timeout} seconds",
-        }
+        msg = f"CoTF inference timed out after {timeout} seconds"
+        write_debug(msg)
+        return {"status": "failed", "error": msg}
     except Exception as e:
-        return {
-            "status": "failed",
-            "error": f"Unexpected error during CoTF inference: {e}",
-        }
+        msg = f"Unexpected error while launching CoTF: {e}"
+        write_debug(msg)
+        return {"status": "failed", "error": msg}
 
-    # 子进程失败
+    write_debug(f"returncode = {result.returncode}")
+    write_debug("----- STDOUT -----")
+    write_debug(result.stdout or "")
+    write_debug("----- STDERR -----")
+    write_debug(result.stderr or "")
+
     if result.returncode != 0:
         return {
             "status": "failed",
             "error": (
-                f"CoTF inference failed with code {result.returncode}\n"
-                f"STDOUT:\n{result.stdout}\n"
-                f"STDERR:\n{result.stderr}"
+                f"CoTF inference failed with exit code {result.returncode}\n"
+                f"Command: {' '.join(cmd)}\n"
+                f"See debug log: {debug_log}"
             ),
         }
 
-    # 1) 优先检查 bridge_infer 是否已按要求输出到 output_path
     if output_path.exists() and output_path.is_file() and output_path.stat().st_size > 0:
+        write_debug("output file exists and is non-empty")
         return {
             "status": "success",
             "output_path": str(output_path),
             "message": "CoTF exposure correction completed successfully",
-            "stdout": result.stdout[-2000:],
         }
 
-    # 2) 兜底：如果 bridge_infer 没写到 output_path，尝试从 results 目录找新生成的图片
-    after_files = set()
-    if results_dir.exists():
-        after_files = {
-            p.resolve()
-            for p in results_dir.rglob("*")
-            if p.is_file() and p.suffix.lower() in {".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff"}
-        }
+    # 再次兜底：有些脚本可能稍晚落盘，短暂轮询一下
+    import time
 
-    new_files = list(after_files - before_files)
-
-    if new_files:
-        # 按修改时间排序，取最新的那个
-        new_files.sort(key=lambda p: p.stat().st_mtime, reverse=True)
-        latest_file = new_files[0]
-        try:
-            shutil.copy2(latest_file, output_path)
-            if output_path.exists() and output_path.stat().st_size > 0:
-                return {
-                    "status": "success",
-                    "output_path": str(output_path),
-                    "message": f"CoTF output recovered from results dir: {latest_file}",
-                    "stdout": result.stdout[-2000:],
-                }
-        except Exception as e:
+    for _ in range(10):
+        time.sleep(0.3)
+        if output_path.exists() and output_path.is_file() and output_path.stat().st_size > 0:
+            write_debug("output file appeared during retry wait")
             return {
-                "status": "failed",
-                "error": (
-                    f"CoTF finished but failed to copy fallback result.\n"
-                    f"Fallback file: {latest_file}\n"
-                    f"Copy error: {e}\n"
-                    f"STDOUT:\n{result.stdout}\n"
-                    f"STDERR:\n{result.stderr}"
-                ),
+                "status": "success",
+                "output_path": str(output_path),
+                "message": "CoTF exposure correction completed successfully",
             }
 
-    # 3) 最终失败：没有找到输出
+    write_debug("output file still missing after subprocess success")
     return {
         "status": "failed",
         "error": (
-            "CoTF finished but no output file was generated.\n"
+            "CoTF finished but output file was not generated.\n"
             f"Expected output: {output_path}\n"
-            f"Checked fallback dir: {results_dir}\n"
-            f"STDOUT:\n{result.stdout}\n"
-            f"STDERR:\n{result.stderr}"
+            f"See debug log: {debug_log}"
         ),
     }
