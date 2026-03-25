@@ -140,6 +140,25 @@ async def process_image(
                 if returned_output_path:
                     output_path = Path(returned_output_path)
 
+            if not output_path.exists():
+                raise RuntimeError(
+                    f"算法执行完成，但未生成输出文件: {output_path}。请检查 wrapper 的输出逻辑。"
+                )
+
+            if output_path.stat().st_size == 0:
+                raise RuntimeError(f"算法执行完成，但输出文件为空: {output_path}。")
+
+            result_bytes = output_path.read_bytes()
+            return Response(
+                content=result_bytes,
+                media_type="image/png",
+                headers={
+                    "X-Task": spec.task,
+                    "X-Algorithm": spec.name,
+                    "X-Requires-GPU": str(spec.requires_gpu).lower(),
+                },
+            )
+
         except HTTPException:
             raise
         except Exception as exc:
@@ -150,25 +169,6 @@ async def process_image(
         finally:
             shutil.rmtree(job_dir, ignore_errors=True)
 
-        if not output_path.exists():
-            raise RuntimeError(
-                f"算法执行完成，但未生成输出文件: {output_path}。请检查 wrapper 的输出逻辑。"
-            )
-
-        if output_path.stat().st_size == 0:
-            raise RuntimeError(f"算法执行完成，但输出文件为空: {output_path}。")
-
-        result_bytes = output_path.read_bytes()
-        return Response(
-            content=result_bytes,
-            media_type="image/png",
-            headers={
-                "X-Task": spec.task,
-                "X-Algorithm": spec.name,
-                "X-Requires-GPU": str(spec.requires_gpu).lower(),
-            },
-        )
-
     except HTTPException:
         raise
     except Exception as exc:
@@ -176,5 +176,3 @@ async def process_image(
             status_code=500,
             detail=_safe_error_detail(f"处理失败: {exc}", "PROCESSING_FAILED"),
         ) from exc
-    finally:
-        shutil.rmtree(job_dir, ignore_errors=True)
