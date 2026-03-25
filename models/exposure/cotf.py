@@ -19,7 +19,7 @@ def run_cotf(
     output_path: Path,
     options: dict[str, Any],
 ) -> dict[str, Any] | None:
-    project_root = Path(__file__).resolve().parent.parent
+    project_root = Path(__file__).resolve().parent.parent.parent
     third_party_root = project_root / "third_party" / "CoTF"
     bridge_script = third_party_root / "bridge_infer.py"
 
@@ -100,12 +100,29 @@ def run_cotf(
         write_debug(msg)
         return {"status": "failed", "error": msg}
 
+    # cmd = [
+    #     conda_exe,
+    #     "run",
+    #     "-n",
+    #     conda_env,
+    #     "python",
+    #     str(bridge_script),
+    #     "--input",
+    #     str(input_path),
+    #     "--output",
+    #     str(output_path),
+    #     "--weights",
+    #     str(weights_path),
+    # ]
+    conda_base = Path(conda_exe).parent.parent
+    env_python = conda_base / "envs" / conda_env / "bin" / "python"
+    
+    # 终极兜底：如果上面的动态计算没找到，直接用你服务器的真实绝对路径
+    if not env_python.exists():
+        env_python = Path(f"/root/miniconda/envs/{conda_env}/bin/python")
+
     cmd = [
-        conda_exe,
-        "run",
-        "-n",
-        conda_env,
-        "python",
+        str(env_python),      # 直接调用 /root/miniconda/envs/cotf/bin/python
         str(bridge_script),
         "--input",
         str(input_path),

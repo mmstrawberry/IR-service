@@ -19,11 +19,11 @@ ALLOWED_EXTENSIONS = {".png", ".jpg", ".jpeg", ".bmp", ".webp", ".tif", ".tiff"}
 WORKDIR = Path("workdirs") / "tmp"
 WORKDIR.mkdir(parents=True, exist_ok=True)
 
-# 确保 CoTF 目录的路径指向正确位置
+# 核心修改：在注册时为每个算法指定具体路径
 ALGORITHMS_PATHS = {
     "cotf_realtime_exposure": Path("/root/project/IR-service/third_party/CoTF/bridge_infer.py"),
     "darkir_realtime_exposure": Path("/root/project/IR-service/models/exposure/darkir.py"),
-    # 添加其他算法路径
+    # 继续添加其他算法路径
 }
 
 def _gpu_available() -> bool:
@@ -121,29 +121,9 @@ async def process_image(
                     detail=_safe_error_detail("上传文件不是有效图像。", "INVALID_IMAGE"),
                 ) from exc
 
-            # runner_result = await run_in_threadpool(
-            #     spec.runner, input_path, output_path, parsed_options
-            # )
-            try:
-                result = subprocess.run(
-                    cmd,
-                    capture_output=True,
-                    text=True,
-                    timeout=timeout,
-                    cwd=str(project_root),
-                    env=env,
+            runner_result = await run_in_threadpool(
+                spec.runner, input_path, output_path, parsed_options
             )
-            
-                print(f"stdout: {result.stdout}")  # 打印标准输出
-                print(f"stderr: {result.stderr}")  # 打印标准错误输出
-            except subprocess.TimeoutExpired:
-                msg = f"CoTF inference timed out after {timeout} seconds"
-                write_debug(msg)
-                return {"status": "failed", "error": msg}
-            except Exception as e:
-                msg = f"Unexpected error while launching CoTF: {e}"
-                write_debug(msg)
-                return {"status": "failed", "error": msg}
 
             if isinstance(runner_result, dict):
                 status = str(runner_result.get("status", "")).lower()
