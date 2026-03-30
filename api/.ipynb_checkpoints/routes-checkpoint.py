@@ -22,7 +22,11 @@ WORKDIR.mkdir(parents=True, exist_ok=True)
 # 核心修改：在注册时为每个算法指定具体路径
 ALGORITHMS_PATHS = {
     "cotf_realtime_exposure": Path("/root/project/IR-service/third_party/CoTF/bridge_infer.py"),
-    "darkir_realtime_exposure": Path("/root/project/IR-service/models/exposure/darkir.py"),
+    "darkir": Path("root/IR-service/third_party/DarkIR/bridge_infer.py"),
+    "evssm": Path("/root/IR-service/third_party/EVSSM/bridge_infer.py"),
+    "darkir_low_light": Path("root/IR-service/third_party/DarkIR/bridge_infer.py"),
+    "deblur_diff": Path("root/IR-service/third_party/DeblurDiff/bridge_infer.py"),
+    "exposure_slot": Path("root/IR-service/third_party/Exposure-slot/bridge_infer.py"),
     # 继续添加其他算法路径
 }
 
