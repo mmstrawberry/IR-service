@@ -81,26 +81,18 @@ def run_deblur_diff(
             tile_stride = None
     
     try:
-        # 调用 bridge_infer.py（运行在 deblurdiff 环境中）
-        cmd = [
-            "conda",
-            "run",
-            "-n",
-            "deblurdiff",
-            "python",
-            "third_party/DeblurDiff/bridge_infer.py",
-            "--input",
-            str(input_path),
-            "--output",
-            str(output_dir),
-            "--model",
-            str(model_path),
-            "--steps",
-            str(steps),
-            "--device",
-            device,
-        ]
+        # 【修改 1】使用绝对路径，彻底抛弃 conda run！
+        deblurdiff_python = "/usr/local/miniconda3/envs/deblurdiff/bin/python"
         
+        cmd = [
+            deblurdiff_python,
+            "third_party/DeblurDiff/bridge_infer.py",
+            "--input", str(input_path),
+            "--output", str(output_dir),  # 传给 bridge 的依然是目录
+            "--model", str(model_path),
+            "--steps", str(steps),
+            "--device", device,
+        ]
         # 【关键】只有当 tile_size 和 tile_stride 都被指定时，才启用 tiled
         if tile_size is not None and tile_stride is not None:
             cmd.extend([
@@ -109,7 +101,7 @@ def run_deblur_diff(
                 "--tile_stride",
                 str(tile_stride),
             ])
-        
+    
         result = subprocess.run(
             cmd,
             capture_output=True,
@@ -117,7 +109,7 @@ def run_deblur_diff(
             timeout=300,
             cwd=Path(__file__).parent.parent.parent,  # 项目根目录
         )
-        
+    
         if result.returncode != 0:
             return {
                 "error": f"DeblurDiff inference failed: {result.stderr}",

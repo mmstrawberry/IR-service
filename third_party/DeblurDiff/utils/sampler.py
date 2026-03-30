@@ -329,7 +329,7 @@ class SpacedSampler(nn.Module):
         total_steps = len(self.timesteps)
         iterator = tqdm(timesteps, total=total_steps, leave=progress_leave, disable=not progress)
         for i, step in enumerate(iterator):
-            ts = torch.full((batch_size,), step, device=device, dtype=torch.long)
+            ts = torch.full((batch_size,), int(step), device=device, dtype=torch.long)
             index = torch.full_like(ts, fill_value=total_steps - i - 1)
             img, kpn = self.p_sample(
                 model, img, ts, index, cond, uncond, cfg_scale, cond_fn,

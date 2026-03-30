@@ -70,24 +70,36 @@ def run_exposure_slot(
         }
     
     try:
-        # 调用 bridge_infer.py（运行在 exposure-slot 环境中）
+        # # 调用 bridge_infer.py（运行在 exposure-slot 环境中）
+        # cmd = [
+        #     "conda",
+        #     "run",
+        #     "-n",
+        #     "exposure-slot",
+        #     "python",
+        #     "third_party/Exposure-slot/bridge_infer.py",
+        #     "--input",
+        #     str(input_path),
+        #     "--output",
+        #     str(output_path),
+        #     "--weights",
+        #     str(weights_path),
+        #     "--dataset",
+        #     dataset,
+        #     "--level",
+        #     str(level),
+        # ]
+        # 抛弃 conda run，使用物理外挂环境的绝对路径
+        exposureslot_python = "/usr/local/miniconda3/envs/exposureslot/bin/python"
+        
         cmd = [
-            "conda",
-            "run",
-            "-n",
-            "exposure-slot",
-            "python",
+            exposureslot_python,
             "third_party/Exposure-slot/bridge_infer.py",
-            "--input",
-            str(input_path),
-            "--output",
-            str(output_path),
-            "--weights",
-            str(weights_path),
-            "--dataset",
-            dataset,
-            "--level",
-            str(level),
+            "--input", str(input_path),
+            "--output", str(output_path),
+            "--weights", str(weights_path),
+            "--dataset", dataset,
+            "--level", str(level),
         ]
         
         result = subprocess.run(

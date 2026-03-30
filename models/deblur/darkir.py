@@ -29,7 +29,7 @@ def run_darkir_deblur(
     output_path = Path(output_path).resolve()
     
     # 从 options 获取模型路径
-    model_name = options.get("model", "DarkIR_LOLBlur.pth")
+    model_name = options.get("model", "DarkIR_384.pt")
     model_path = Path("third_party/DarkIR/weights") / model_name
     model_path = model_path.resolve()
     
@@ -57,24 +57,57 @@ def run_darkir_deblur(
     if isinstance(resize, str):
         resize = resize.lower() in ["true", "1", "yes"]
     
+    # try:
+    #     # 调用 bridge_infer.py（运行在 darkir 环境中）
+    #     cmd = [
+    #         "conda",
+    #         "run",
+    #         "-n",
+    #         "darkir",
+    #         "python",
+    #         "third_party/DarkIR/bridge_infer.py",
+    #         "--input",
+    #         str(input_path),
+    #         "--output",
+    #         str(output_path),
+    #         "--model",
+    #         str(model_path),
+    #         "--resize",
+    #         str(resize),
+    #     ]
+        # ... 前面的验证代码保持不变 ...
+
+    # 是否启用缩放
+    resize = options.get("resize", False)
+    if isinstance(resize, str):
+        resize = resize.lower() in ["true", "1", "yes"]
+    
     try:
-        # 调用 bridge_infer.py（运行在 darkir 环境中）
+        # 【修改 1】使用绝对路径，彻底抛弃 conda run，防止服务卡死！
+        darkir_python = "/usr/local/miniconda3/envs/darkir/bin/python"
+        
+        # 基础命令组装（不含 resize）
         cmd = [
-            "conda",
-            "run",
-            "-n",
-            "darkir",
-            "python",
+            darkir_python,
             "third_party/DarkIR/bridge_infer.py",
-            "--input",
-            str(input_path),
-            "--output",
-            str(output_path),
-            "--model",
-            str(model_path),
-            "--resize",
-            str(resize),
+            "--input", str(input_path),
+            "--output", str(output_path),
+            "--model", str(model_path),
         ]
+        
+        # 【修改 2】因为桥接脚本里用的是 action="store_true"，所以只有为 True 时才追加这个标志
+        if resize:
+            cmd.append("--resize")
+            
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=120,
+            cwd=Path(__file__).parent.parent.parent,  # 项目根目录
+        )
+        
+        # ... 后面的 result 校验代码保持不变 ...
         
         result = subprocess.run(
             cmd,

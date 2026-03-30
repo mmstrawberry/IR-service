@@ -33,18 +33,13 @@ def main():
     # 3. 构建 inference.py 命令
     # 注意：inference.py 在当前环境中已安装，不再需要切环境
     cmd = [
-        "python",
+        sys.executable,  # 【修改 2】使用 sys.executable 替代写死的 "python"
         "inference.py",
-        "--input",
-        args.input,
-        "--output",
-        args.output,
-        "--model",
-        args.model,
-        "--steps",
-        str(args.steps),
-        "--device",
-        args.device,
+        "--input", args.input,
+        "--output", args.output,
+        "--model", args.model,
+        "--steps", str(args.steps),
+        "--device", args.device,
     ]
     
     # 4. 【关键】只有当 tile_size 和 tile_stride 都被指定时，才启用 tiled
